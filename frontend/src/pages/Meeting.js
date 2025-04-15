@@ -22,49 +22,6 @@ const Meeting = () => {
 
     let streamRef;
 
-    const handleCallUser = async (userId, stream) => {
-      const peer = new RTCPeerConnection(config);
-      peerRef.current = peer;
-
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-
-      peer.ontrack = (e) => {
-        remoteVideo.current.srcObject = e.streams[0];
-      };
-
-      peer.onicecandidate = (e) => {
-        if (e.candidate) {
-          socket.emit('ice-candidate', { candidate: e.candidate, to: userId });
-        }
-      };
-
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-      socket.emit('offer', { offer, to: userId });
-    };
-
-    const handleAnswerCall = async (offer, from, stream) => {
-      const peer = new RTCPeerConnection(config);
-      peerRef.current = peer;
-
-      stream.getTracks().forEach((track) => peer.addTrack(track, stream));
-
-      peer.ontrack = (e) => {
-        remoteVideo.current.srcObject = e.streams[0];
-      };
-
-      peer.onicecandidate = (e) => {
-        if (e.candidate) {
-          socket.emit('ice-candidate', { candidate: e.candidate, to: from });
-        }
-      };
-
-      await peer.setRemoteDescription(new RTCSessionDescription(offer));
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
-      socket.emit('answer', { answer, to: from });
-    };
-
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef = stream;
@@ -72,14 +29,65 @@ const Meeting = () => {
 
       socket.emit('join-room', roomId);
 
-      socket.on('user-joined', (userId) => handleCallUser(userId, stream));
-      socket.on('offer', ({ offer, from }) => handleAnswerCall(offer, from, stream));
+      socket.on('user-joined', async (userId) => {
+        console.log('User joined:', userId);
+        peerRef.current = new RTCPeerConnection(config);
+
+        stream.getTracks().forEach((track) =>
+          peerRef.current.addTrack(track, stream)
+        );
+
+        peerRef.current.ontrack = (event) => {
+          console.log('Track received');
+          remoteVideo.current.srcObject = event.streams[0];
+        };
+
+        peerRef.current.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { candidate: event.candidate, to: userId });
+          }
+        };
+
+        const offer = await peerRef.current.createOffer();
+        await peerRef.current.setLocalDescription(offer);
+        socket.emit('offer', { offer, to: userId });
+      });
+
+      socket.on('offer', async ({ offer, from }) => {
+        console.log('Offer received');
+        peerRef.current = new RTCPeerConnection(config);
+
+        stream.getTracks().forEach((track) =>
+          peerRef.current.addTrack(track, stream)
+        );
+
+        peerRef.current.ontrack = (event) => {
+          console.log('Track received');
+          remoteVideo.current.srcObject = event.streams[0];
+        };
+
+        peerRef.current.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('ice-candidate', { candidate: event.candidate, to: from });
+          }
+        };
+
+        await peerRef.current.setRemoteDescription(new RTCSessionDescription(offer));
+        const answer = await peerRef.current.createAnswer();
+        await peerRef.current.setLocalDescription(answer);
+        socket.emit('answer', { answer, to: from });
+      });
+
       socket.on('answer', ({ answer }) => {
+        console.log('Answer received');
         peerRef.current?.setRemoteDescription(new RTCSessionDescription(answer));
       });
+
       socket.on('ice-candidate', ({ candidate }) => {
+        console.log('ICE candidate received');
         peerRef.current?.addIceCandidate(new RTCIceCandidate(candidate));
       });
+
       socket.on('receive-message', ({ message, sender }) => {
         setMessages((prev) => [...prev, { message, sender }]);
       });
@@ -90,7 +98,9 @@ const Meeting = () => {
     return () => {
       socket.disconnect();
       if (peerRef.current) peerRef.current.close();
-      if (streamRef) streamRef.getTracks().forEach((track) => track.stop());
+      if (localVideo.current?.srcObject) {
+        localVideo.current.srcObject.getTracks().forEach((track) => track.stop());
+      }
     };
   }, [roomId]);
 
