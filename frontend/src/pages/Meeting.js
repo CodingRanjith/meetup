@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import './Meeting.css';
 
@@ -7,6 +7,7 @@ const socket = io('https://meetup-xjjz.onrender.com');
 
 const Meeting = () => {
   const { roomId } = useParams();
+  const navigate = useNavigate();
   const localVideo = useRef();
   const remoteVideo = useRef();
   const peerRef = useRef(null);
@@ -20,25 +21,22 @@ const Meeting = () => {
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     };
 
-    let streamRef;
-
     const init = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      streamRef = stream;
       localVideo.current.srcObject = stream;
 
       socket.emit('join-room', roomId);
 
+      
+
       socket.on('user-joined', async (userId) => {
         console.log('User joined:', userId);
-        peerRef.current = new RTCPeerConnection(config);
+        new Audio('/join.mp3').play();
 
-        stream.getTracks().forEach((track) =>
-          peerRef.current.addTrack(track, stream)
-        );
+        peerRef.current = new RTCPeerConnection(config);
+        stream.getTracks().forEach((track) => peerRef.current.addTrack(track, stream));
 
         peerRef.current.ontrack = (event) => {
-          console.log('Track received');
           remoteVideo.current.srcObject = event.streams[0];
         };
 
@@ -56,13 +54,9 @@ const Meeting = () => {
       socket.on('offer', async ({ offer, from }) => {
         console.log('Offer received');
         peerRef.current = new RTCPeerConnection(config);
-
-        stream.getTracks().forEach((track) =>
-          peerRef.current.addTrack(track, stream)
-        );
+        stream.getTracks().forEach((track) => peerRef.current.addTrack(track, stream));
 
         peerRef.current.ontrack = (event) => {
-          console.log('Track received');
           remoteVideo.current.srcObject = event.streams[0];
         };
 
@@ -95,13 +89,19 @@ const Meeting = () => {
 
     init();
 
-    return () => {
-      socket.disconnect();
-      if (peerRef.current) peerRef.current.close();
-      if (localVideo.current?.srcObject) {
-        localVideo.current.srcObject.getTracks().forEach((track) => track.stop());
-      }
-    };
+
+    const localVideoRef = localVideo.current;
+
+return () => {
+  socket.disconnect();
+  if (peerRef.current) peerRef.current.close();
+  if (localVideoRef?.srcObject) {
+    const localStream = localVideoRef.srcObject;
+    localStream.getTracks().forEach((track) => track.stop());
+  }
+};
+
+
   }, [roomId]);
 
   const sendMessage = () => {
@@ -115,9 +115,7 @@ const Meeting = () => {
   const toggleMic = () => {
     const stream = localVideo.current?.srcObject;
     if (stream) {
-      stream.getAudioTracks().forEach((track) => {
-        track.enabled = !track.enabled;
-      });
+      stream.getAudioTracks().forEach((track) => (track.enabled = !track.enabled));
       setMicOn((prev) => !prev);
     }
   };
@@ -125,17 +123,26 @@ const Meeting = () => {
   const toggleCam = () => {
     const stream = localVideo.current?.srcObject;
     if (stream) {
-      stream.getVideoTracks().forEach((track) => {
-        track.enabled = !track.enabled;
-      });
+      stream.getVideoTracks().forEach((track) => (track.enabled = !track.enabled));
       setCamOn((prev) => !prev);
     }
+  };
+
+  const copyRoomLink = () => {
+    navigator.clipboard.writeText(window.location.href);
+    alert('✅ Room link copied to clipboard!');
+  };
+
+  const leaveRoom = () => {
+    navigate('/');
   };
 
   return (
     <div className="meeting-container">
       <header className="meeting-header">
         <h3>Room: {roomId}</h3>
+        <button onClick={copyRoomLink} className="link-btn">🔗 Copy Link</button>
+        <button onClick={leaveRoom} className="leave-btn">🚪 Leave Room</button>
       </header>
 
       <div className="meeting-content">
@@ -143,14 +150,9 @@ const Meeting = () => {
           <video ref={remoteVideo} autoPlay className="remote-video" />
           <video ref={localVideo} autoPlay muted className="local-video mirror" />
 
-          {/* Mute/Camera Buttons */}
           <div className="control-buttons">
-            <button onClick={toggleMic} title="Toggle Microphone">
-              {micOn ? '🎤 On' : '🔇 Off'}
-            </button>
-            <button onClick={toggleCam} title="Toggle Camera">
-              {camOn ? '📷 On' : '📷 Off'}
-            </button>
+            <button onClick={toggleMic}>{micOn ? '🎤 On' : '🔇 Off'}</button>
+            <button onClick={toggleCam}>{camOn ? '📷 On' : '📷 Off'}</button>
           </div>
         </div>
 
