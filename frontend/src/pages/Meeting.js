@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import './Meeting.css';
 
-const socket = io('http://localhost:5000'); // Change to your server URL
+const socket = io('https://meetup-xjjz.onrender.com'); // Change to your server URL
 let peer;
 
 const Meeting = () => {
