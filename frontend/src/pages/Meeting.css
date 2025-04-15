@@ -197,3 +197,30 @@
     transform: scaleX(-1);
   }
   
+
+  .control-buttons {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 999;
+  }
+  
+  .control-buttons button {
+    background-color: #6f42c1;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    transition: background 0.2s ease-in-out;
+  }
+  
+  .control-buttons button:hover {
+    background-color: #5a379e;
+  }
+  
